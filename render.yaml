@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: aisisiger
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: BOT_TOKEN
+        sync: false
+      - key: BOT_USERNAME
+        value: Sunnexai_bot
+      - key: ADMIN_IDS
+        value: 8606829795,6816038229
+      - key: PUBLIC_URL
+        sync: false
+      - key: ENABLE_BOT
+        value: true
+      - key: ALLOW_DEMO
+        value: true
+      - key: SESSION_SECRET
+        generateValue: true
