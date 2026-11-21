@@ -326,7 +326,7 @@ app.get('/api/config', (_req, res) => {
     demoMode: ALLOW_DEMO,
     ...publicSettings(settings),
     textModel: settings.ai?.textModel || 'demo',
-    version: '0.3.0'
+    version: '0.3.1'
   });
 });
 
@@ -346,7 +346,10 @@ app.post('/api/auth', (req, res) => {
         photoUrl: tgUser.photo_url
       };
     } catch (err) {
-      return res.status(401).json({ error: err.message });
+      return res.status(401).json({
+        error: `${err.message}. MiniApp'ni @${BOT_USERNAME} boti orqali /start tugmasi bilan qayta oching.`,
+        code: 'auth_failed'
+      });
     }
   } else if (ALLOW_DEMO) {
     demo = true;

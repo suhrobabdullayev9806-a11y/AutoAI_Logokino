@@ -165,7 +165,7 @@ export default function App() {
             <h2>Ulanish xatosi</h2>
             <p>{bootError}</p>
             <button className="btn btn-primary boot-retry" onClick={bootApp}>Qayta urinish</button>
-            {/telegram/i.test(bootError) ? (
+            {/telegram|initData|imzo/i.test(bootError) ? (
               <button className="btn btn-ghost boot-retry" onClick={() => openExternal('https://t.me/Sunnexai_bot')}>
                 Telegram botni ochish
               </button>
