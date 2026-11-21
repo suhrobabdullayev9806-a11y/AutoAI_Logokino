@@ -1,18 +1,23 @@
-name: Keep Render awake
+name: Keep Render awake 24/7
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    # Two overlapping long-running keepers: each run pings for ~5h45m.
+    - cron: '0 */6 * * *'
+    - cron: '0 3,9,15,21 * * *'
   workflow_dispatch:
 
 jobs:
-  ping:
+  keepalive:
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     steps:
-      - name: Ping MiniStudio health endpoint
+      - name: Ping MiniStudio every 4 minutes
         run: |
-          for i in 1 2 3; do
-            curl -fsS --max-time 30 https://autoai-logokino.onrender.com/api/health && exit 0
-            sleep 20
+          echo "Keepalive started at $(date -u)"
+          for i in $(seq 1 86); do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 https://autoai-logokino.onrender.com/api/health || true)
+            echo "[$i/86] $(date -u +%H:%M:%S) health=$code"
+            sleep 240
           done
-          exit 0
+          echo "Keepalive finished at $(date -u)"

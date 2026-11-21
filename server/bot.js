@@ -90,26 +90,31 @@ export async function startBot({ botToken, botUsername, publicUrl, adminIds, sto
   const findPackage = (id) => (typeof getPackage === 'function' ? getPackage(id) : packageMap[id] || PACKAGE_MAP[id]);
   const isAdmin = (id) => adminIds.map(String).includes(String(id));
 
-  try {
-    const me = await tgCall(botToken, 'getMe');
-    console.log(`[bot] @${me.username} ulandi`);
-    await tgCall(botToken, 'setMyCommands', {
-      commands: [
-        { command: 'start', description: "MiniApp'ni ochish" },
-        { command: 'app', description: "MiniApp'ni qayta ochish" },
-        { command: 'admin', description: 'Admin panel (faqat adminlar)' },
-        { command: 'help', description: 'Yordam' }
-      ]
-    }).catch(() => {});
-    if (base) {
-      await tgCall(botToken, 'setChatMenuButton', {
-        menu_button: { type: 'web_app', text: 'AutoAI', web_app: { url: base } }
+  let botReady = false;
+  for (let attempt = 1; attempt <= 20 && !botReady; attempt += 1) {
+    try {
+      const me = await tgCall(botToken, 'getMe');
+      console.log(`[bot] @${me.username} ulandi`);
+      await tgCall(botToken, 'setMyCommands', {
+        commands: [
+          { command: 'start', description: "MiniApp'ni ochish" },
+          { command: 'app', description: "MiniApp'ni qayta ochish" },
+          { command: 'admin', description: 'Admin panel (faqat adminlar)' },
+          { command: 'help', description: 'Yordam' }
+        ]
       }).catch(() => {});
+      if (base) {
+        await tgCall(botToken, 'setChatMenuButton', {
+          menu_button: { type: 'web_app', text: 'AutoAI', web_app: { url: base } }
+        }).catch(() => {});
+      }
+      botReady = true;
+    } catch (err) {
+      console.error(`[bot] ishga tushmadi (urinish ${attempt}/20):`, err.message);
+      await sleep(5000);
     }
-  } catch (err) {
-    console.error('[bot] ishga tushmadi:', err.message);
-    return;
   }
+  if (!botReady) return;
 
   const sendWelcome = async (chatId, firstName, userId, payload = '') => {
     const admin = isAdmin(userId);
