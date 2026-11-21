@@ -359,7 +359,9 @@ app.post('/api/auth', (req, res) => {
       demo: true
     };
   } else {
-    return res.status(401).json({ error: 'Telegram ichida oching' });
+    return res.status(401).json({
+      error: `MiniApp faqat Telegram ichida ishlaydi. @${BOT_USERNAME} orqali oching.`
+    });
   }
 
   const user = ensureUser(profile);

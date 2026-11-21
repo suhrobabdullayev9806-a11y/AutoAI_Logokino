@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { auth, getConfig, loadMe } from './api.js';
-import { getTg, haptic, initTelegram, showBackButton } from './telegram.js';
+import { getTg, haptic, initTelegram, openExternal, showBackButton } from './telegram.js';
 import { Icon } from './icons.jsx';
 import { CreditPill, Wordmark } from './components.jsx';
 import Home from './screens/Home.jsx';
@@ -33,6 +33,7 @@ export default function App() {
   const [needCost, setNeedCost] = useState(0);
   const [toast, setToast] = useState('');
   const toastRef = useRef(null);
+  const deepLinkRef = useRef(false);
 
   const notify = (message) => {
     setToast(message);
@@ -74,6 +75,21 @@ export default function App() {
     bootApp();
     return () => clearTimeout(toastRef.current);
   }, []);
+
+  useEffect(() => {
+    if (boot !== 'ready' || !user || deepLinkRef.current) return;
+    deepLinkRef.current = true;
+    const params = new URLSearchParams(window.location.search);
+    const target =
+      params.get('screen') ||
+      params.get('tgWebAppStartParam') ||
+      window.Telegram?.WebApp?.initDataUnsafe?.start_param ||
+      '';
+    if (target === 'admin') {
+      if (user.isAdmin) setStack([{ name: 'admin', params: {} }]);
+      else notify('Admin panel faqat adminlar uchun');
+    }
+  }, [boot, user]);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -149,6 +165,11 @@ export default function App() {
             <h2>Ulanish xatosi</h2>
             <p>{bootError}</p>
             <button className="btn btn-primary boot-retry" onClick={bootApp}>Qayta urinish</button>
+            {/telegram/i.test(bootError) ? (
+              <button className="btn btn-ghost boot-retry" onClick={() => openExternal('https://t.me/Sunnexai_bot')}>
+                Telegram botni ochish
+              </button>
+            ) : null}
           </div>
         )}
       </div>

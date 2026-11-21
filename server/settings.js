@@ -23,7 +23,7 @@ export const DEFAULT_SETTINGS = {
   costs: { ...COSTS },
   packages: PACKAGES.map((p) => ({ ...p })),
   payment: {
-    mode: 'demo', // demo | stars | card
+    mode: 'stars', // demo | stars | card
     cardNumber: '',
     cardHolder: '',
     cardExpiry: '',

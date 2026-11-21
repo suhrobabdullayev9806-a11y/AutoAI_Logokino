@@ -18,7 +18,7 @@ export async function createStarsInvoiceLink({ botToken, pkg, packageId, userId 
   const pack = pkg || PACKAGE_MAP[packageId];
   if (!pack) throw new Error('Tarif topilmadi');
   return tgCall(botToken, 'createInvoiceLink', {
-    title: `MiniStudio — ${pack.credits} kredit`,
+    title: `AutoAI Logokino — ${pack.credits} kredit`,
     description: `${pack.title}: ${pack.note}`,
     payload: `credits:${pack.credits}:${userId}:${pack.id}`,
     provider_token: '',
@@ -27,31 +27,83 @@ export async function createStarsInvoiceLink({ botToken, pkg, packageId, userId 
   });
 }
 
-function appKeyboard(publicUrl) {
-  if (!publicUrl) return undefined;
+function normalizeUrl(url) {
+  return String(url || '').replace(/\/$/, '');
+}
+
+function appKeyboard(publicUrl, isAdmin = false) {
+  const base = normalizeUrl(publicUrl);
+  if (!base) return undefined;
+  const rows = [[{ text: "🎬 MiniApp'ni ochish", web_app: { url: base } }]];
+  if (isAdmin) {
+    rows.push([{ text: '🎛 Admin panel', web_app: { url: `${base}?screen=admin` } }]);
+  }
+  return { inline_keyboard: rows };
+}
+
+function adminKeyboard(publicUrl) {
+  const base = normalizeUrl(publicUrl);
+  if (!base) return undefined;
   return {
-    inline_keyboard: [[{ text: '🎬 MiniStudio’ni ochish', web_app: { url: publicUrl } }]]
+    inline_keyboard: [
+      [{ text: '🎛 Admin panelni ochish', web_app: { url: `${base}?screen=admin` } }],
+      [{ text: '🎬 MiniApp', web_app: { url: base } }],
+      [
+        { text: '📊 Statistika', callback_data: 'stats' },
+        { text: '🔄 Yangilash', callback_data: 'stats' }
+      ]
+    ]
   };
 }
 
+function statsText(s) {
+  return (
+    `📊 AutoAI Logokino statistikasi\n\n` +
+    `👥 Foydalanuvchilar: ${s.users}\n` +
+    `🎬 Ishlar: ${s.works}\n` +
+    `   • serial: ${s.serials}\n` +
+    `   • rasm: ${s.images}\n` +
+    `⚡ Sarflangan kredit: ${s.creditsSpent}\n` +
+    `💳 To'lovlar: ${s.payments} ta\n` +
+    `⭐ Stars: ${s.stars}\n` +
+    `🕓 Kutilayotgan karta to'lovlari: ${s.pendingOrders || 0}`
+  );
+}
+
+function welcomeText(firstName, isAdmin) {
+  return (
+    `🎬 AutoAI Logokino\n\n` +
+    `Salom, ${firstName || "do'stim"}! 👋\n\n` +
+    `AI yordamida yaratamiz:\n` +
+    `• 🎞 Mini serial — haqiqiy MP4 + ovoz\n` +
+    `• 🖼 Rasm — 1 yoki 4 variant\n` +
+    `• 🎨 Logotip va brand-kit\n\n` +
+    `Pastdagi tugma orqali MiniApp'ga kiring.\n` +
+    `Hisobingiz shaxsiy Telegram akkauntingizga bog'lanadi.` +
+    (isAdmin ? `\n\n🛡 Siz adminsiz — admin panel tugmasi ham mavjud.` : '')
+  );
+}
+
 export async function startBot({ botToken, botUsername, publicUrl, adminIds, store, getPackage, packages }) {
-  const menu = appKeyboard(publicUrl);
+  const base = normalizeUrl(publicUrl);
   const packageMap = Object.fromEntries((packages || []).map((p) => [p.id, p]));
   const findPackage = (id) => (typeof getPackage === 'function' ? getPackage(id) : packageMap[id] || PACKAGE_MAP[id]);
+  const isAdmin = (id) => adminIds.map(String).includes(String(id));
 
   try {
     const me = await tgCall(botToken, 'getMe');
     console.log(`[bot] @${me.username} ulandi`);
     await tgCall(botToken, 'setMyCommands', {
       commands: [
-        { command: 'start', description: 'MiniStudio’ni ochish' },
-        { command: 'app', description: 'MiniApp’ni qayta ochish' },
+        { command: 'start', description: "MiniApp'ni ochish" },
+        { command: 'app', description: "MiniApp'ni qayta ochish" },
+        { command: 'admin', description: 'Admin panel (faqat adminlar)' },
         { command: 'help', description: 'Yordam' }
       ]
     }).catch(() => {});
-    if (publicUrl) {
+    if (base) {
       await tgCall(botToken, 'setChatMenuButton', {
-        menu_button: { type: 'web_app', text: 'MiniStudio', web_app: { url: publicUrl } }
+        menu_button: { type: 'web_app', text: 'AutoAI', web_app: { url: base } }
       }).catch(() => {});
     }
   } catch (err) {
@@ -59,21 +111,36 @@ export async function startBot({ botToken, botUsername, publicUrl, adminIds, sto
     return;
   }
 
-  const sendWelcome = async (chatId, firstName = 'do‘stim') => {
+  const sendWelcome = async (chatId, firstName, userId, payload = '') => {
+    const admin = isAdmin(userId);
+    let text = welcomeText(firstName, admin);
+    if (payload === 'admin' && admin) {
+      text = `🛡 Admin rejimi yoqildi.\n\n` + text;
+    }
+    await tgCall(botToken, 'sendMessage', {
+      chat_id: chatId,
+      text,
+      reply_markup: appKeyboard(base, admin)
+    }).catch((err) => console.error('[bot] sendWelcome:', err.message));
+  };
+
+  const sendAdminPanel = async (chatId) => {
+    const s = store.stats();
     await tgCall(botToken, 'sendMessage', {
       chat_id: chatId,
       text:
-        `Salom, ${firstName}! 👋\n\n` +
-        `MiniStudio — AI yordamida ovozli mini serial, rasm va logotip yaratadigan studiya.\n\n` +
-        `Pastdagi tugma orqali MiniApp’ni oching.`,
-      reply_markup: menu
-    }).catch((err) => console.error('[bot] sendWelcome:', err.message));
+        `🛡 ADMIN MARKAZI\n` +
+        `━━━━━━━━━━━━━━━━━━\n\n` +
+        `${statsText(s)}\n\n` +
+        `Quyidagi tugmalar orqali boshqaring 👇`,
+      reply_markup: adminKeyboard(base)
+    }).catch((err) => console.error('[bot] sendAdminPanel:', err.message));
   };
 
   const sendInvoice = async (chatId, pkg) => {
     await tgCall(botToken, 'sendInvoice', {
       chat_id: chatId,
-      title: `MiniStudio — ${pkg.credits} kredit`,
+      title: `AutoAI Logokino — ${pkg.credits} kredit`,
       description: `${pkg.title}: ${pkg.note}`,
       payload: `credits:${pkg.credits}:0:${pkg.id}`,
       provider_token: '',
@@ -88,7 +155,7 @@ export async function startBot({ botToken, botUsername, publicUrl, adminIds, sto
       const updates = await tgCall(botToken, 'getUpdates', {
         offset,
         timeout: 25,
-        allowed_updates: ['message', 'pre_checkout_query']
+        allowed_updates: ['message', 'callback_query', 'pre_checkout_query']
       });
       for (const update of updates) {
         offset = update.update_id + 1;
@@ -98,6 +165,25 @@ export async function startBot({ botToken, botUsername, publicUrl, adminIds, sto
               pre_checkout_query_id: update.pre_checkout_query.id,
               ok: true
             });
+            continue;
+          }
+
+          if (update.callback_query) {
+            const cq = update.callback_query;
+            const userId = String(cq.from?.id || '');
+            const chatId = cq.message?.chat?.id;
+            if (cq.data === 'stats' && isAdmin(userId)) {
+              await tgCall(botToken, 'answerCallbackQuery', {
+                callback_query_id: cq.id,
+                text: 'Statistika yangilandi ✅'
+              }).catch(() => {});
+              await sendAdminPanel(chatId);
+            } else {
+              await tgCall(botToken, 'answerCallbackQuery', {
+                callback_query_id: cq.id,
+                text: isAdmin(userId) ? 'OK' : 'Faqat adminlar uchun'
+              }).catch(() => {});
+            }
             continue;
           }
 
@@ -125,7 +211,7 @@ export async function startBot({ botToken, botUsername, publicUrl, adminIds, sto
               });
               await tgCall(botToken, 'sendMessage', {
                 chat_id: chatId,
-                text: `✅ To‘lov qabul qilindi. Hisobingizga ${credits} kredit qo‘shildi.`
+                text: `✅ To'lov qabul qilindi. Hisobingizga ${credits} kredit qo'shildi.`
               }).catch(() => {});
             }
             continue;
@@ -140,27 +226,43 @@ export async function startBot({ botToken, botUsername, publicUrl, adminIds, sto
                 continue;
               }
             }
-            await sendWelcome(chatId, msg.from?.first_name || 'do‘stim');
+            if (payload === 'admin' && isAdmin(userId)) {
+              await sendAdminPanel(chatId);
+              continue;
+            }
+            await sendWelcome(chatId, msg.from?.first_name, userId, payload);
             continue;
           }
 
           if (text.startsWith('/app')) {
-            await sendWelcome(chatId, msg.from?.first_name || 'do‘stim');
+            await sendWelcome(chatId, msg.from?.first_name, userId);
             continue;
           }
 
-          if (text.startsWith('/stats') && adminIds.includes(userId)) {
-            const s = store.stats();
-            await tgCall(botToken, 'sendMessage', {
-              chat_id: chatId,
-              text:
-                `📊 MiniStudio statistikasi\n\n` +
-                `Foydalanuvchilar: ${s.users}\n` +
-                `Ishlar: ${s.works} (serial: ${s.serials}, rasm: ${s.images})\n` +
-                `Sarflangan kredit: ${s.creditsSpent}\n` +
-                `To‘lovlar: ${s.payments} ta, ${s.stars} Stars\n` +
-                `Karta buyurtmalari: ${s.pendingOrders || 0} ta kutilmoqda`
-            }).catch(() => {});
+          if (text.startsWith('/admin')) {
+            if (isAdmin(userId)) {
+              await sendAdminPanel(chatId);
+            } else {
+              await tgCall(botToken, 'sendMessage', {
+                chat_id: chatId,
+                text:
+                  `⛔ Bu bo'lim faqat adminlar uchun.\n\n` +
+                  `MiniApp'ga kirish uchun /start buyrug'ini bosing.`,
+                reply_markup: appKeyboard(base, false)
+              }).catch(() => {});
+            }
+            continue;
+          }
+
+          if (text.startsWith('/stats')) {
+            if (isAdmin(userId)) {
+              await sendAdminPanel(chatId);
+            } else {
+              await tgCall(botToken, 'sendMessage', {
+                chat_id: chatId,
+                text: `⛔ Statistika faqat adminlar uchun.`
+              }).catch(() => {});
+            }
             continue;
           }
 
@@ -168,12 +270,15 @@ export async function startBot({ botToken, botUsername, publicUrl, adminIds, sto
             await tgCall(botToken, 'sendMessage', {
               chat_id: chatId,
               text:
-                `MiniStudio yordam:\n\n` +
-                `1. /start — MiniApp’ni ochish\n` +
-                `2. MiniApp ichida “Serial” yoki “Rasm” bo‘limini tanlang\n` +
-                `3. Kreditlar Telegram Stars yoki admin sozlagan karta orqali xarid qilinadi\n\n` +
-                `Savollar: @${botUsername || 'Sunnexai_bot'}`
+                `AutoAI Logokino yordam:\n\n` +
+                `1. /start — MiniApp'ni ochish\n` +
+                `2. MiniApp ichida "Serial" yoki "Rasm" bo'limini tanlang\n` +
+                `3. Kreditlar Telegram Stars yoki admin sozlagan karta orqali xarid qilinadi\n` +
+                `4. /admin — admin panel (faqat adminlar)\n\n` +
+                `Savollar: @${botUsername || 'Sunnexai_bot'}`,
+              reply_markup: appKeyboard(base, isAdmin(userId))
             }).catch(() => {});
+            continue;
           }
         } catch (inner) {
           console.error('[bot] update xatosi:', inner.message);
