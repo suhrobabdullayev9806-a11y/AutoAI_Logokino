@@ -2,6 +2,14 @@ import { PACKAGE_MAP } from './packages.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+export const botStatus = {
+  running: false,
+  startedAt: null,
+  lastPollAt: null,
+  lastUpdateAt: null,
+  lastError: null
+};
+
 async function tgCall(token, method, payload = {}) {
   const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST',
@@ -115,6 +123,9 @@ export async function startBot({ botToken, botUsername, publicUrl, adminIds, sto
     }
   }
   if (!botReady) return;
+  botStatus.running = true;
+  botStatus.startedAt = new Date().toISOString();
+  botStatus.lastError = null;
 
   const sendWelcome = async (chatId, firstName, userId, payload = '') => {
     const admin = isAdmin(userId);
@@ -157,13 +168,16 @@ export async function startBot({ botToken, botUsername, publicUrl, adminIds, sto
   let offset = 0;
   while (true) {
     try {
+      botStatus.lastPollAt = new Date().toISOString();
       const updates = await tgCall(botToken, 'getUpdates', {
         offset,
         timeout: 25,
         allowed_updates: ['message', 'callback_query', 'pre_checkout_query']
       });
+      botStatus.lastError = null;
       for (const update of updates) {
         offset = update.update_id + 1;
+        botStatus.lastUpdateAt = new Date().toISOString();
         try {
           if (update.pre_checkout_query) {
             await tgCall(botToken, 'answerPreCheckoutQuery', {
@@ -290,6 +304,7 @@ export async function startBot({ botToken, botUsername, publicUrl, adminIds, sto
         }
       }
     } catch (err) {
+      botStatus.lastError = err.message;
       console.error('[bot] polling xatosi:', err.message);
       await sleep(3000);
     }

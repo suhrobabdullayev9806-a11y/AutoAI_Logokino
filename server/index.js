@@ -11,7 +11,7 @@ import { validateInitData } from './auth.js';
 import { PACKAGES } from './packages.js';
 import { buildSeries, pollinationsUrl } from './story.js';
 import { seedDemo } from './seed.js';
-import { createStarsInvoiceLink, startBot, tgCall } from './bot.js';
+import { botStatus, createStarsInvoiceLink, startBot, tgCall } from './bot.js';
 import { generateScript, testGemini } from './ai.js';
 import { renderImages, renderSerial, GENERATED_ROOT } from './render.js';
 import {
@@ -313,6 +313,7 @@ app.get('/api/health', (_req, res) => {
     ok: true,
     service: 'ministudio',
     ffmpeg: fs.existsSync(path.join(ROOT, 'node_modules', 'ffmpeg-static')),
+    bot: botStatus,
     time: new Date().toISOString()
   });
 });
@@ -810,14 +811,23 @@ app.listen(PORT, () => {
   console.log(`MiniStudio API: http://localhost:${PORT}`);
   console.log(`Demo rejimi: ${ALLOW_DEMO ? 'yoqilgan' : 'o‘chirilgan'}`);
   if (ENABLE_BOT && BOT_TOKEN) {
-    startBot({
-      botToken: BOT_TOKEN,
-      botUsername: BOT_USERNAME,
-      publicUrl: PUBLIC_URL,
-      adminIds: ADMIN_IDS,
-      store: { addCredits, recordPayment, stats },
-      getPackage
-    }).catch((err) => console.error('[bot] fatal:', err.message));
+    const launchBot = () => {
+      startBot({
+        botToken: BOT_TOKEN,
+        botUsername: BOT_USERNAME,
+        publicUrl: PUBLIC_URL,
+        adminIds: ADMIN_IDS,
+        store: { addCredits, recordPayment, stats },
+        getPackage
+      })
+        .catch((err) => console.error('[bot] fatal:', err.message))
+        .finally(() => {
+          botStatus.running = false;
+          console.error('[bot] to‘xtadi — 10 soniyadan keyin qayta ishga tushiriladi');
+          setTimeout(launchBot, 10000);
+        });
+    };
+    launchBot();
   } else {
     console.log('[bot] o‘chirilgan (ENABLE_BOT=false)');
   }
