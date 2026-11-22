@@ -2,10 +2,18 @@ name: Keep Render awake 24/7
 
 on:
   schedule:
-    # Two overlapping long-running keepers: each run pings for ~5h45m.
+    # Backup schedules. The real continuity comes from the self-queued next run.
     - cron: '0 */6 * * *'
     - cron: '0 3,9,15,21 * * *'
   workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: render-keepalive
+  cancel-in-progress: false
 
 jobs:
   keepalive:
@@ -15,9 +23,17 @@ jobs:
       - name: Ping MiniStudio every 4 minutes
         run: |
           echo "Keepalive started at $(date -u)"
-          for i in $(seq 1 86); do
+          for i in $(seq 1 84); do
             code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 https://autoai-logokino.onrender.com/api/health || true)
-            echo "[$i/86] $(date -u +%H:%M:%S) health=$code"
+            echo "[$i/84] $(date -u +%H:%M:%S) health=$code"
             sleep 240
           done
-          echo "Keepalive finished at $(date -u)"
+          echo "Keepalive loop finished at $(date -u)"
+
+      - name: Queue the next keepalive run
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run keepalive.yml --ref main
+          echo "Next keepalive queued at $(date -u)"
